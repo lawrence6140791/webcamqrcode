@@ -3,79 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS QR Code 掃描</title>
+    <title>萬用 QR Code 掃描器</title>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #f2f2f7;
+            background-color: #f0f2f5;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-top: 50px;
+            justify-content: center;
+            min-height: 100vh;
             margin: 0;
-            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
-        h2 { color: #333; }
-
-        /* 鏡頭視窗 */
+        h2 { margin-bottom: 10px; color: #333; }
+        
+        /* 響應式掃描框：手機寬度 100%，電腦固定寬度 */
         #reader {
-            width: 90%;
-            max-width: 400px;
-            height: 300px;
-            background-color: #000;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            overflow: hidden;
-            position: relative;
+            width: 100%;
+            max-width: 500px; 
+            background: #000;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
 
-        /* 按鈕樣式 (iOS 風格) */
-        button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 18px;
-            border-radius: 25px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        button:active { background-color: #0056b3; }
-        button:disabled { background-color: #ccc; }
-
-        /* 結果顯示 */
         #result {
             margin-top: 20px;
-            font-size: 16px;
-            color: #333;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             text-align: center;
-            padding: 10px;
-            width: 90%;
+            width: 100%;
+            max-width: 500px;
+            min-height: 50px;
             word-break: break-all;
+            display: none; /* 預設隱藏 */
         }
 
-        /* 錯誤訊息 (紅色) */
-        #error-msg {
-            color: red;
-            font-size: 14px;
-            margin-top: 10px;
-            text-align: center;
-            width: 90%;
+        .btn-group { margin-top: 20px; }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            color: white;
+            transition: opacity 0.3s;
         }
+
+        #start-btn { background-color: #007aff; }
+        #stop-btn { background-color: #ff3b30; display: none; }
+        
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        #error-msg { color: #e74c3c; margin-top: 10px; text-align: center; font-size: 14px;}
     </style>
 </head>
 <body>
 
     <h2>QR Code 掃描器</h2>
-
+    
     <div id="reader"></div>
+    
+    <div class="btn-group">
+        <button id="start-btn" onclick="startScanner()">📷 啟動相機</button>
+        <button id="stop-btn" onclick="stopScanner()">⛔ 停止掃描</button>
+    </div>
 
-    <button id="start-btn" onclick="startScanning()">📷 開啟相機掃描</button>
-    <button id="stop-btn" onclick="stopScanning()" style="display:none; background-color: #ff3b30;">⛔ 停止掃描</button>
-
-    <div id="result">尚未掃描</div>
+    <div id="result"></div>
     <div id="error-msg"></div>
 
     <script>
@@ -85,56 +85,84 @@
         const resultDiv = document.getElementById('result');
         const errorDiv = document.getElementById('error-msg');
 
+        // 掃描成功的回調
         function onScanSuccess(decodedText, decodedResult) {
-            // 掃描成功
-            resultDiv.innerHTML = `<b>✅ 掃描成功:</b><br>${decodedText}`;
+            console.log(`掃描結果: ${decodedText}`);
             
-            // 可選：成功後震動 (Android Only, iOS Safari 不支援網頁震動 API)
-            // if (navigator.vibrate) navigator.vibrate(200);
-
-            // 掃描成功後是否要自動停止？如果想連續掃描，把下面這行註解掉
-            // stopScanning(); 
+            resultDiv.style.display = "block";
+            resultDiv.innerHTML = `✅ <b>掃描成功：</b><br>${decodedText}`;
+            
+            // 成功後是否要停止？如果不停止，請註解掉下面這行
+            // stopScanner();
         }
 
-        function startScanning() {
-            // 清空錯誤訊息
+        // 核心啟動邏輯
+        async function startScanner() {
+            // 重置介面
             errorDiv.innerText = "";
-            resultDiv.innerText = "正在啟動相機...";
-            
-            // 禁用按鈕防止重複點擊
+            resultDiv.style.display = "none";
             startBtn.disabled = true;
+            startBtn.innerText = "啟動中...";
 
-            // 設定鏡頭參數：強制使用後置鏡頭 (environment)
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            
-            html5QrCode.start(
-                { facingMode: "environment" }, // 這裡指定後鏡頭
-                config,
-                onScanSuccess
-            ).then(() => {
-                // 啟動成功
-                resultDiv.innerText = "正在掃描中...";
-                startBtn.style.display = "none";
-                stopBtn.style.display = "inline-block";
-                startBtn.disabled = false;
-            }).catch(err => {
-                // 啟動失敗 (這會告訴我們具體原因)
+            try {
+                // 1. 先獲取所有鏡頭列表
+                const devices = await Html5Qrcode.getCameras();
+                
+                if (devices && devices.length) {
+                    let cameraId;
+                    
+                    // 2. 智能判斷：
+                    // 如果有多個鏡頭（手機），嘗試找 "back" 或 "environment" 的鏡頭
+                    // 如果只有一個鏡頭（筆電），直接用第一個
+                    if (devices.length > 1) {
+                        // 嘗試尋找後置鏡頭
+                        const backCamera = devices.find(device => 
+                            device.label.toLowerCase().includes('back') || 
+                            device.label.toLowerCase().includes('environment'));
+                        
+                        // 找到了就用後置，沒找到就用列表最後一個（通常是後置）
+                        cameraId = backCamera ? backCamera.id : devices[devices.length - 1].id;
+                    } else {
+                        // 只有一個鏡頭 (筆電)
+                        cameraId = devices[0].id;
+                    }
+
+                    // 3. 啟動掃描
+                    await html5QrCode.start(
+                        cameraId, 
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 250 }
+                        },
+                        onScanSuccess
+                    );
+
+                    // 介面更新
+                    startBtn.style.display = "none";
+                    stopBtn.style.display = "inline-block";
+                    startBtn.innerText = "📷 啟動相機"; // 復原文字
+                    startBtn.disabled = false;
+
+                } else {
+                    throw "找不到攝像頭設備";
+                }
+            } catch (err) {
                 console.error(err);
                 startBtn.disabled = false;
-                resultDiv.innerText = "啟動失敗";
-                errorDiv.innerText = `錯誤：${err}`;
-                
+                startBtn.innerText = "📷 啟動相機";
+                errorDiv.innerText = `無法啟動相機: ${err}`;
                 if (err.toString().includes("Permission")) {
-                    errorDiv.innerText += "\n請檢查 iOS 設定 > Safari > 相機，確認權限設為「詢問」或「允許」。";
+                    errorDiv.innerText += " (請確認瀏覽器已允許相機權限，且網址為 HTTPS)";
                 }
-            });
+            }
         }
 
-        function stopScanning() {
+        // 停止邏輯
+        function stopScanner() {
             html5QrCode.stop().then(() => {
                 startBtn.style.display = "inline-block";
                 stopBtn.style.display = "none";
-                resultDiv.innerText = "已停止";
+                resultDiv.innerHTML += "<br>(已停止)";
             }).catch(err => {
                 console.log("停止失敗", err);
             });
